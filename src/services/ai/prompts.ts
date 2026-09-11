@@ -73,31 +73,49 @@ export function buildUserPrompt(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Strips common AI preamble phrases that Gemini occasionally prepends
- * despite the system instruction telling it not to.
+ * Strips AI preamble phrases that Gemini sometimes prepends despite
+ * being instructed not to.
  *
- * Only removes the preamble prefix – never modifies content or
- * removes emojis, URLs, names, or numbers.
+ * Design rules:
+ * - Only strip if there is a COLON after the preamble keyword, OR the
+ *   pattern ends with ! or . followed by a space (unambiguous filler).
+ * - "Here is my report for Q3." → NOT stripped (no colon, genuine content).
+ * - "Sure thing, I will send it." → NOT stripped ("Sure" not followed by ! or .).
+ * - Emojis, URLs, names, numbers in the body are never touched.
  */
 export function cleanAIResponse(raw: string): string {
-  // Patterns Gemini sometimes prepends
-  const PREAMBLE_PATTERNS = [
-    /^here\s+is\s+(?:the\s+)?(?:rewritten|corrected|revised|improved|updated|your)?\s*(?:text|sentence|version|message)?:?\s*/i,
-    /^sure[!,.]?\s*/i,
-    /^of\s+course[!,.]?\s*/i,
-    /^certainly[!,.]?\s*/i,
-    /^here\s+you\s+go[!,.]?\s*/i,
-    /^here'?s\s+(?:the\s+)?(?:rewritten|corrected|revised|improved|updated)?\s*(?:text|sentence|version|message)?:?\s*/i,
-    /^(?:rewritten|corrected|revised|improved|updated)\s+(?:text|sentence|version|message):?\s*/i,
+  const PREAMBLE_PATTERNS: RegExp[] = [
+    // "Here is the rewritten text: ..." / "Here is your corrected sentence: ..."
+    // Requires a colon — prevents stripping genuine sentences like "Here is my report".
+    /^here\s+is\s+(?:the\s+|your\s+)?(?:rewritten|corrected|revised|improved|updated)?\s*(?:text|sentence|version|message|result)?:\s*/i,
+
+    // "Here's the corrected text: ..."
+    /^here'?s\s+(?:the\s+|your\s+)?(?:rewritten|corrected|revised|improved|updated)?\s*(?:text|sentence|version|message|result)?:\s*/i,
+
+    // "Rewritten text: ..." / "Corrected sentence: ..." / "Improved version: ..."
+    /^(?:rewritten|corrected|revised|improved|updated)\s+(?:text|sentence|version|message|result):\s*/i,
+
+    // "Here you go! ..." / "Here you go: ..."
+    /^here\s+you\s+go[!:.]\s+/i,
+
+    // "Sure! ..." / "Sure. ..." — only when immediately followed by ! or .
+    /^sure[!.]\s+/i,
+
+    // "Of course! ..." / "Of course. ..."
+    /^of\s+course[!.]\s+/i,
+
+    // "Certainly! ..." / "Certainly. ..."
+    /^certainly[!.]\s+/i,
   ];
 
   let result = raw.trim();
 
   for (const pattern of PREAMBLE_PATTERNS) {
     const cleaned = result.replace(pattern, '');
-    if (cleaned.length > 0) {
+    // Only apply if something was actually removed
+    if (cleaned !== result && cleaned.trim().length > 0) {
       result = cleaned.trim();
-      break; // Only strip one preamble – don't over-strip
+      break; // Only strip one preamble prefix
     }
   }
 
