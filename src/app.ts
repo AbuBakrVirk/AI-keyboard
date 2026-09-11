@@ -80,12 +80,15 @@ export function createApp(): Application {
   return app;
 }
 
+const app = createApp();
+
+export default app;
+
 // ─────────────────────────────────────────────────────────────
 // Start server (only when this file is the entry point)
 // ─────────────────────────────────────────────────────────────
 
 if (require.main === module) {
-  const app = createApp();
   const port = config.server.port;
 
   // Bind to 0.0.0.0 so Android devices on the same LAN can reach the server.
